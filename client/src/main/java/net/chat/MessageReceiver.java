@@ -6,36 +6,33 @@ import java.io.IOException;
 
 
 public class MessageReceiver extends Thread {
-    private static BufferedReader bufferedReader;
-    private static final ClientSetting CLIENT_SETTING = ClientSetting.getInstance();
-    private static Logger logger = null;
+    private final BufferedReader bufferedReader;
+    private static final Logger logger = Logger.getInstance();
 
     public MessageReceiver(BufferedReader bufferedReader) {
-        MessageReceiver.bufferedReader = bufferedReader;
-        logger = ConsoleClient.getLogger();
+        this.bufferedReader = bufferedReader;
     }
 
     @Override
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                System.out.println(receiveMessageFromServer());
+                String messageFromServer = receiveMessageFromServer(bufferedReader);
+                logger.log("[Получено с сервера]: " + messageFromServer);
+                System.out.println(messageFromServer);
             } catch (IOException e) {
                 try {
                     bufferedReader.close();
                 } catch (IOException ex) {
-                    logger.log("Сервер прервал соединение c Клиентом");
-                    throw new RuntimeException("Сервер прервал соединение");
+                    logger.log("[Сервер прервал соединение c Клиентом]");
+                    throw new RuntimeException("[Сервер прервал соединение]");
                 }
             }
         }
     }
 
-    public static String receiveMessageFromServer() throws IOException {
-        return logger.logWhitReturn(
-                "Получено с сервера",
-                bufferedReader.readLine()
-        );
+    public static String receiveMessageFromServer(BufferedReader bufferedReader) throws IOException {
+        return bufferedReader.readLine();
     }
 
 }

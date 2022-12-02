@@ -13,45 +13,69 @@ public class Connection extends Thread {
     private PrintWriter outputStream;
     private String userName = "undefined";
     private boolean isConnected = false;
-    private final static Logger LOGGER = ChatServer.getLogger();
+    private Logger logger;
     private final static List<Connection> connections = ChatServer.getConnections();
 
-    public Connection(Socket socket) {
+    public Connection(Socket socket, Logger logger) {
         try {
-            inputStream = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            outputStream = new PrintWriter(socket.getOutputStream(), true);
-            LOGGER.log("Созданы, BufferedReader и PrintWriter");
+            this.logger = logger;
+            inputStream = buildInputStream(socket);
+            outputStream = buildOutputStream(socket);
+            logger.log("Созданы, BufferedReader и PrintWriter");
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    public static PrintWriter buildOutputStream(Socket socket) throws IOException {
+        return new PrintWriter(socket.getOutputStream(), true);
+    }
+
+    public static BufferedReader buildInputStream(Socket socket) throws IOException {
+        return new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    }
+
     @Override
     public void run() {
         try {
-            String notCheckedUserName = chooseUserName();
+            Thread.currentThread().setName(userName);
+            logger.log(
+                    sendMessageToClient("Введите имя пользователя: ")
+            );
+            String notCheckedUserName = readClientMessage(inputStream);
             boolean nameIsValid = userNameValidation(notCheckedUserName);
             while (!nameIsValid) {
-                LOGGER.log("Попытка авторизации с невалидным именем");
-                sendMessageToClient("Имя не уникально или = exit, или менее 2х символов");
-                notCheckedUserName = chooseUserName();
+                logger.log(
+                        sendMessageToClient(
+                                "Имя не уникально или = exit, или менее 2х символов"
+                        )
+                );
+                notCheckedUserName = readClientMessage(inputStream);
                 nameIsValid = userNameValidation(notCheckedUserName);
             }
-            this.userName = notCheckedUserName;
-            isConnected = true;
+            userName = notCheckedUserName;
 
-            sendMessageToAllClient("[" + userName + "] вошел в чат");
+            Thread.currentThread().setName(userName);
+            setTrueIsConnected();
+            logger.log(
+                    sendMessageToConnectedClients("[" + userName + "] вошел в чат")
+            );
             String messageFromClient;
             while (true) {
-                messageFromClient = readClientMessage();
+                messageFromClient = readClientMessage(inputStream);
                 if (messageFromClient.equals("exit")) {
-                    LOGGER.log("Пользователь " + userName + " набрал команду exit");
+                    logger.log("[Пользователь " + userName + " набрал команду exit]");
                     break;
                 } else if (messageFromClient.equals("")) {
                     continue;
                 }
-                sendMessageToAllClient("[" + userName + "] " + messageFromClient);
+                logger.log(
+                        sendMessageToConnectedClients("[" + userName + "] " + messageFromClient)
+                );
             }
+            logger.log(
+                    sendMessageToConnectedClients("[" + userName + "] покинул в чат")
+            );
             closeConnection();
 
         } catch (IOException e) {
@@ -61,35 +85,37 @@ public class Connection extends Thread {
         }
     }
 
-    private void closeConnection() {
-        sendMessageToAllClient("[" + userName + "] покинул в чат");
-        closeAll();
-        connections.remove(this);
+    public void closeConnection() {
+        try {
+            inputStream.close();
+            outputStream.close();
+            connections.remove(this);
+        } catch (IOException exception) {
+            exception.printStackTrace();
+            logger.log("[Ошибка закрытия inputStream или outputStream] " + exception);
+        }
     }
 
-    private String readClientMessage() throws IOException {
+    public static String readClientMessage(BufferedReader inputStream) throws IOException {
         try {
             return inputStream.readLine();
         } catch (IOException exception) {
-            throw new RuntimeException("Клиент оборвал соединение \n" + exception);
+            throw new RuntimeException("[Клиент оборвал соединение] \n" + exception);
         }
-
     }
 
-    private String chooseUserName() throws IOException {
-        sendMessageToClient("Введите имя пользователя: ");
-        return readClientMessage();
-    }
 
-    private boolean userNameValidation(String notCheckedUserName) {
-        if (notCheckedUserName.length() < 2 || notCheckedUserName.equals("exit".toLowerCase())) {
+    public boolean userNameValidation(String notCheckedUserName) {
+        if (notCheckedUserName.length() < 2
+                || notCheckedUserName.equalsIgnoreCase("exit")
+                || notCheckedUserName.equalsIgnoreCase("unDEfined")) {
             return false;
         }
         String connectionName;
         synchronized (connections) {
             for (int i = 0; i < connections.size(); i++) {
-                connectionName = connections.get(i).getUserName();
-                if (notCheckedUserName.equals(connectionName)) {
+                connectionName = connections.get(i).userName;
+                if (notCheckedUserName.equalsIgnoreCase(connectionName)) {
                     return false;
                 }
             }
@@ -97,36 +123,32 @@ public class Connection extends Thread {
         }
     }
 
-    private void closeAll() {
-        try {
-            inputStream.close();
-            outputStream.close();
-        } catch (IOException exception) {
-            exception.printStackTrace();
-            LOGGER.log("Ошибка закрытия inputStream или outputStream " + exception);
-        }
+    public String sendMessageToClient(String message) {
+        outputStream.println(message);
+        return " [отправлено сообщение от: " + userName + "] "
+                + message;
+
     }
 
-    private void sendMessageToClient(String message) {
-        outputStream.println(
-                LOGGER.logWhitReturn(
-                        "",
-                        message)
-        );
-    }
-
-    private void sendMessageToAllClient(String message) {
-        LOGGER.log("message" + " отправлено всем подключенным клиентам");
+    public String sendMessageToConnectedClients(String message) {
         synchronized (connections) {
             for (int i = 0; i < connections.size(); i++) {
-                if (connections.get(i).isConnected) {
+                if (connections.get(i).isConnected()) {
                     connections.get(i).sendMessageToClient(message);
+
                 }
             }
         }
+        return " [отправлено всем подключенным клиентам] "
+                + message;
     }
 
-    private String getUserName() {
-        return userName;
+
+    public boolean isConnected() {
+        return this.isConnected;
+    }
+
+    public void setTrueIsConnected() {
+        isConnected = true;
     }
 }

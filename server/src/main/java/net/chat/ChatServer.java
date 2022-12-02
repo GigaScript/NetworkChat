@@ -1,9 +1,6 @@
 package net.chat;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -12,42 +9,64 @@ import java.util.Collections;
 import java.util.List;
 
 public class ChatServer {
-    private static final ServerSetting SERVER_SETTING = ServerSetting.getInstance();
-    private static final InetAddress SERVER_IP_ADDRESS = SERVER_SETTING.serverIpAddress();
-    private static final int SERVER_PORT = SERVER_SETTING.getServerPort();
-    private static final Logger LOGGER = new Logger(SERVER_SETTING.getLogPath());
-    private static ServerSocket serverSocket;
+    private final InetAddress serverIpAddress;
+    private final int serverPort;
+    private final Logger logger;
+    private ServerSocket serverSocket;
     static Socket socket;
     static final List<Connection> connections = Collections.synchronizedList(new ArrayList<>());
 
-    private ChatServer() {
+
+    public ChatServer(final InetAddress serverIpAddress, final int serverPort, final Logger logger) {
+        this.logger = logger;
+        this.serverIpAddress = serverIpAddress;
+        this.serverPort = serverPort;
 
     }
 
-    public static void main(String[] args) throws IOException {
+    public void startServer() throws IOException {
         try {
-            serverSocket = new ServerSocket(SERVER_PORT, 50, SERVER_IP_ADDRESS);
-            LOGGER.log("Сервер запущен: SERVER_IP_ADDRESS=" + SERVER_IP_ADDRESS + " SERVER_PORT=" + SERVER_PORT);
+            serverSocket = buildServerSocket(serverPort, serverIpAddress);
+            String startMessage = "[Сервер запущен]: SERVER_IP_ADDRESS=" + serverIpAddress + " SERVER_PORT=" + serverPort;
+            logger.log(startMessage);
+            System.out.println(startMessage);
             while (true) {
-                socket = serverSocket.accept();
-                final Connection connection = new Connection(socket);
-                connections.add(connection);
-                connection.start();
+                socket = waitNewConnection(serverSocket);
+                prepareNewConnection(connections);
             }
         } catch (IOException exception) {
-            LOGGER.log("Сервер остановлен с ошибкой: " + exception);
+            logger.log("[Сервер остановлен с ошибкой]: " + exception);
             exception.printStackTrace();
         } finally {
-            serverSocket.close();
-            socket.close();
-            LOGGER.log("Сервер остановлен, serverSocket и socket- закрыты");
+            closeServer();
+            logger.log("[Сервер остановлен, serverSocket и socket- закрыты]");
         }
     }
-    public static Logger getLogger() {
-        return LOGGER;
+
+    public void prepareNewConnection(List<Connection> connections) {
+        final Connection connection = getConnection();
+        connections.add(connection);
+        connection.start();
     }
+
+    public void closeServer() throws IOException {
+        this.serverSocket.close();
+        socket.close();
+    }
+
+    public Connection getConnection() {
+        return new Connection(socket, this.logger);
+    }
+
+    public static Socket waitNewConnection(ServerSocket serverSocket) throws IOException {
+        return serverSocket.accept();
+    }
+
     public static List<Connection> getConnections() {
         return connections;
     }
 
+    public static ServerSocket buildServerSocket(int serverPort, InetAddress serverIpAddress) throws IOException {
+        return new ServerSocket(serverPort, 50, serverIpAddress);
+    }
 }

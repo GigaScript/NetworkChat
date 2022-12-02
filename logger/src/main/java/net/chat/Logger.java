@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter;
 public class Logger {
 
     private static Logger instance;
-    private static String logPath;
+    private static String logPath ;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public Logger(String logPath) {
@@ -20,7 +20,6 @@ public class Logger {
         if (instance == null) {
             synchronized (Logger.class) {
                 if (instance == null) {
-                    Logger.logPath = logPath;
                     instance = new Logger(logPath);
                 }
             }
@@ -38,9 +37,5 @@ public class Logger {
             e.printStackTrace();
             return false;
         }
-    }
-    public String logWhitReturn(String prefix,String message) {
-        log(prefix+message);
-        return message;
     }
 }

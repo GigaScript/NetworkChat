@@ -10,31 +10,45 @@ import java.util.Scanner;
 
 
 public class ConsoleClient {
-    private static final ClientSetting CLIENT_SETTING = ClientSetting.getInstance();
-    private static final InetAddress SERVER_IP_ADDRESS = CLIENT_SETTING.serverIpAddress();
-    private static final int SERVER_PORT = CLIENT_SETTING.getServerPort();
-    private static final Logger LOGGER = new Logger(CLIENT_SETTING.getLogPath());
-    private static final Scanner scanner = new Scanner(System.in);
-    private static PrintWriter printWriter;
+    private final InetAddress serverIpAddress;
+    private final int serverPort;
+    public static Logger logger;
+    private final Scanner scanner = new Scanner(System.in);
+    private PrintWriter outputStream;
 
-    public static void main(String[] args) {
-        try (Socket socket = new Socket(SERVER_IP_ADDRESS, SERVER_PORT)) {
-            BufferedReader bufferedReader = createBufferedReader(socket);
-            printWriter = createPrintWriter(socket);
-            LOGGER.log("Клиент запущен: SERVER_IP_ADDRESS=" + SERVER_IP_ADDRESS + " SERVER_PORT=" + SERVER_PORT);
+    public ConsoleClient(final InetAddress serverIpAddress, final int serverPort, final Logger logger) {
+        this.logger = logger;
+        this.serverIpAddress = serverIpAddress;
+        this.serverPort = serverPort;
+    }
+
+
+    public void startClient() {
+        try (Socket socket = new Socket(serverIpAddress, serverPort)) {
+            BufferedReader bufferedReader = buildInputStream(socket);
+            outputStream = buildOutputStream(socket);
+            logger.log("[Клиент запущен]: SERVER_IP_ADDRESS=" + serverIpAddress + " SERVER_PORT=" + serverPort);
             final MessageReceiver messageReceiver = new MessageReceiver(bufferedReader);
             messageReceiver.start();
-            LOGGER.log("messageReceiver запущен");
+            logger.log("[messageReceiver запущен]: ");
             String userMessage = readUserMessage(scanner);
-            sentMessageToServer(userMessage);
+            logger.log(
+                    "[Отправлено на сервер]: "
+                            + sentMessageToServer(userMessage, outputStream)
+            );
+
             while (!isExit(userMessage)) {
                 userMessage = readUserMessage(scanner);
-                sentMessageToServer(userMessage);
+                logger.log(
+                        "[Получено с сервера]: "
+                                + userMessage);
+                sentMessageToServer(userMessage, outputStream);
             }
-            closeScanner(scanner);
+            scanner.close();
+            logger.log("[сканер закрыт]");
 
         } catch (IOException exception) {
-            LOGGER.log("Подключение к серверу отклонено" + exception);
+            logger.log("[Подключение к серверу отклонено]" + exception);
             exception.printStackTrace();
         }
     }
@@ -44,34 +58,24 @@ public class ConsoleClient {
         return "exit".equalsIgnoreCase(userMessage);
     }
 
-    public static BufferedReader createBufferedReader(Socket socket) throws IOException {
+    public static BufferedReader buildInputStream(Socket socket) throws IOException {
         return new BufferedReader(new InputStreamReader(
                 socket.getInputStream()));
     }
 
-    public static PrintWriter createPrintWriter(Socket socket) throws IOException {
+    public static PrintWriter buildOutputStream(Socket socket) throws IOException {
         return new PrintWriter(
                 socket.getOutputStream(), true);
     }
 
-    public static void sentMessageToServer(String userMessage) {
-        LOGGER.log("Отправлено на сервер: " + userMessage);
-        printWriter.println(userMessage);
+    public static String sentMessageToServer(String userMessage, PrintWriter outputStream) {
+
+        outputStream.println(userMessage);
+        return userMessage;
     }
 
     public static String readUserMessage(Scanner scanner) {
-        return LOGGER.logWhitReturn(
-                "Пользователь отправил сообщение: "
-                , scanner.nextLine()
-        );
+        return scanner.nextLine();
     }
 
-    public static void closeScanner(Scanner scanner) {
-        LOGGER.log("Работа клиента остановлена");
-        scanner.close();
-    }
-
-    public static Logger getLogger() {
-        return LOGGER;
-    }
 }

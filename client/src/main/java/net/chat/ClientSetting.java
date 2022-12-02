@@ -8,8 +8,7 @@ import java.util.Properties;
 
 public class ClientSetting {
     private static ClientSetting instance;
-    private static final File PROPERTY_FILE_PATH = new File(
-            "./client/src/main/java/net/chat/resources/setting.properties");
+    private static String propertyFilePath = "./client/src/main/java/net/chat/resources/setting.properties";
     private static final Properties PROPERTIES = new Properties();
     private static InetAddress serverIpAddress;
     private static int serverPort;
@@ -19,10 +18,11 @@ public class ClientSetting {
     private ClientSetting() {
     }
 
-    public static ClientSetting getInstance() {
+    public static ClientSetting getInstance(String propertyFilePath) {
         if (instance == null) {
             synchronized (ClientSetting.class) {
                 if (instance == null) {
+                    ClientSetting.propertyFilePath = propertyFilePath;
                     instance = new ClientSetting();
                     loadSettingFromFile();
                 }
@@ -32,7 +32,7 @@ public class ClientSetting {
     }
 
     private static void loadSettingFromFile() {
-        try (FileReader fileReader = new FileReader(PROPERTY_FILE_PATH)) {
+        try (FileReader fileReader = new FileReader(propertyFilePath)) {
             PROPERTIES.load(fileReader);
             serverIpAddress = InetAddress.getByName(
                     PROPERTIES.getProperty("ipAddress", "localhost"));

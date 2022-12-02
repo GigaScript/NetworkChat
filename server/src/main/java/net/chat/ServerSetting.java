@@ -1,6 +1,5 @@
 package net.chat;
 
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -9,8 +8,7 @@ import java.util.Properties;
 public class ServerSetting {
 
     private static ServerSetting instance;
-    private static final File PROPERTY_FILE_PATH = new File(
-            "./server/src/main/java/net/chat/resources/setting.properties");
+    private static String propertyFilePath;
     private static final Properties PROPERTIES = new Properties();
     private static InetAddress serverIpAddress;
     private static int serverPort;
@@ -20,10 +18,11 @@ public class ServerSetting {
     private ServerSetting() {
     }
 
-    public static ServerSetting getInstance() {
+    public static ServerSetting getInstance(String filePath) {
         if (instance == null) {
             synchronized (ServerSetting.class) {
                 if (instance == null) {
+                    propertyFilePath = filePath;
                     instance = new ServerSetting();
                     loadSettingFromFile();
                 }
@@ -33,7 +32,7 @@ public class ServerSetting {
     }
 
     private static void loadSettingFromFile() {
-        try (FileReader fileReader = new FileReader(PROPERTY_FILE_PATH)) {
+        try (FileReader fileReader = new FileReader(propertyFilePath)) {
             PROPERTIES.load(fileReader);
             serverIpAddress = InetAddress.getByName(
                     PROPERTIES.getProperty("ipAddress", "localhost"));
